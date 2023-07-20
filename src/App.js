@@ -10,7 +10,6 @@ function App() {
     setInputList(event.target.value)
   }
 
-console.log(Item);
   const addItem = () => {
     setItem((oldVal) => {
       return [...oldVal, inputList]
