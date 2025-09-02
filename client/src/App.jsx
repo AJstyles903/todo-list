@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
 	Search,
@@ -8,7 +8,10 @@ import {
 	CheckCircle,
 	Circle,
 	Filter,
+	Loader2,
 } from "lucide-react";
+
+const API_BASE_URL = "http://localhost:3001/api"; // Backend API URL
 
 const App = () => {
 	const [tasks, setTasks] = useState([]);
@@ -17,42 +20,128 @@ const App = () => {
 	const [editText, setEditText] = useState("");
 	const [filter, setFilter] = useState("all");
 	const [searchTerm, setSearchTerm] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState(null);
 
-	useEffect(() => {
-		const savedTasks = localStorage.getItem("tasks");
-		if (savedTasks) {
-			setTasks(JSON.parse(savedTasks));
+	// API Functions
+	const fetchTasks = async () => {
+		try {
+			setLoading(true);
+			setError(null);
+			const response = await fetch(`${API_BASE_URL}/tasks`);
+			if (!response.ok) throw new Error("Failed to fetch tasks");
+			const data = await response.json();
+			setTasks(data);
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoading(false);
 		}
-	}, []);
+	};
 
-	useEffect(() => {
-		localStorage.setItem("tasks", JSON.stringify(tasks));
-	}, [tasks]);
+	const addTask = async () => {
+		if (newTask.trim() === "") return;
 
-	const addTask = () => {
-		if (newTask.trim() !== "") {
-			const task = {
-				id: Date.now(),
-				text: newTask.trim(),
-				completed: false,
-				createdAt: new Date().toISOString(),
-			};
-			setTasks([task, ...tasks]);
+		try {
+			setLoading(true);
+			const response = await fetch(`${API_BASE_URL}/tasks`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					text: newTask.trim(),
+					completed: false,
+				}),
+			});
+
+			if (!response.ok) throw new Error("Failed to add task");
+			const newTaskData = await response.json();
+			setTasks([newTaskData, ...tasks]);
 			setNewTask("");
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoading(false);
 		}
 	};
 
-	const deleteTask = (id) => {
-		setTasks(tasks.filter((task) => task.id !== id));
+	const deleteTask = async (id) => {
+		try {
+			setLoading(true);
+			const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
+				method: "DELETE",
+			});
+
+			if (!response.ok) throw new Error("Failed to delete task");
+			setTasks(tasks.filter((task) => task.id !== id));
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoading(false);
+		}
 	};
 
-	const toggleComplete = (id) => {
-		setTasks(
-			tasks.map((task) =>
-				task.id === id ? { ...task, completed: !task.completed } : task
-			)
-		);
+	const toggleComplete = async (id) => {
+		try {
+			const task = tasks.find((t) => t.id === id);
+			if (!task) return;
+
+			setLoading(true);
+			const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					...task,
+					completed: !task.completed,
+				}),
+			});
+
+			if (!response.ok) throw new Error("Failed to update task");
+			const updatedTask = await response.json();
+			setTasks(tasks.map((t) => (t.id === id ? updatedTask : t)));
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoading(false);
+		}
 	};
+
+	const updateTask = async (id, text) => {
+		try {
+			const task = tasks.find((t) => t.id === id);
+			if (!task) return;
+
+			setLoading(true);
+			const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					...task,
+					text: text.trim(),
+				}),
+			});
+
+			if (!response.ok) throw new Error("Failed to update task");
+			const updatedTask = await response.json();
+			setTasks(tasks.map((t) => (t.id === id ? updatedTask : t)));
+			setEditingId(null);
+			setEditText("");
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	// Load tasks on component mount
+	useEffect(() => {
+		fetchTasks();
+	}, []);
 
 	const startEditing = (id, text) => {
 		setEditingId(id);
@@ -61,14 +150,8 @@ const App = () => {
 
 	const saveEdit = () => {
 		if (editText.trim() !== "") {
-			setTasks(
-				tasks.map((task) =>
-					task.id === editingId ? { ...task, text: editText.trim() } : task
-				)
-			);
+			updateTask(editingId, editText);
 		}
-		setEditingId(null);
-		setEditText("");
 	};
 
 	const cancelEdit = () => {
@@ -90,9 +173,21 @@ const App = () => {
 	const completedCount = tasks.filter((task) => task.completed).length;
 	const activeCount = tasks.length - completedCount;
 
+	if (loading && tasks.length === 0) {
+		return (
+			<div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+				<div className="text-center">
+					<Loader2 className="animate-spin mx-auto text-blue-500" size={48} />
+					<p className="mt-4 text-gray-600">Loading tasks...</p>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
 			<div className="max-w-2xl mx-auto">
+				{/* Header */}
 				<motion.div
 					initial={{ opacity: 0, y: -20 }}
 					animate={{ opacity: 1, y: 0 }}
@@ -104,6 +199,27 @@ const App = () => {
 					<p className="text-gray-600">Stay organized and productive</p>
 				</motion.div>
 
+				{/* Error Message */}
+				{error && (
+					<motion.div
+						initial={{ opacity: 0, y: -10 }}
+						animate={{ opacity: 1, y: 0 }}
+						className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6"
+					>
+						<div className="flex items-center gap-2 text-red-700">
+							<span>⚠️</span>
+							<span>{error}</span>
+							<button
+								onClick={() => setError(null)}
+								className="ml-auto text-red-500 hover:text-red-700"
+							>
+								✕
+							</button>
+						</div>
+					</motion.div>
+				)}
+
+				{/* Add Task Section */}
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
@@ -118,25 +234,33 @@ const App = () => {
 							onKeyPress={(e) => e.key === "Enter" && addTask()}
 							placeholder="Add a new task..."
 							className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							disabled={loading}
 						/>
 						<motion.button
 							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
 							onClick={addTask}
-							className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
+							disabled={loading || newTask.trim() === ""}
+							className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
 						>
-							<Plus size={20} />
+							{loading ? (
+								<Loader2 className="animate-spin" size={20} />
+							) : (
+								<Plus size={20} />
+							)}
 							Add
 						</motion.button>
 					</div>
 				</motion.div>
 
+				{/* Search and Filter Section */}
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ delay: 0.2 }}
 					className="bg-white rounded-2xl shadow-lg p-6 mb-6"
 				>
+					{/* Search Bar */}
 					<div className="relative mb-4">
 						<Search
 							className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
@@ -151,6 +275,7 @@ const App = () => {
 						/>
 					</div>
 
+					{/* Filter Buttons */}
 					<div className="flex flex-wrap gap-2">
 						<button
 							onClick={() => setFilter("all")}
@@ -186,6 +311,7 @@ const App = () => {
 					</div>
 				</motion.div>
 
+				{/* Tasks List */}
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
@@ -225,6 +351,7 @@ const App = () => {
 													whileHover={{ scale: 1.1 }}
 													whileTap={{ scale: 0.9 }}
 													onClick={() => toggleComplete(task.id)}
+													disabled={loading}
 													className="flex-shrink-0"
 												>
 													{task.completed ? (
@@ -249,12 +376,14 @@ const App = () => {
 																}
 																className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 																autoFocus
+																disabled={loading}
 															/>
 															<motion.button
 																whileHover={{ scale: 1.05 }}
 																whileTap={{ scale: 0.95 }}
 																onClick={saveEdit}
-																className="bg-green-500 text-white px-3 py-2 rounded-lg font-medium"
+																disabled={loading}
+																className="bg-green-500 disabled:bg-gray-300 text-white px-3 py-2 rounded-lg font-medium"
 															>
 																Save
 															</motion.button>
@@ -262,7 +391,8 @@ const App = () => {
 																whileHover={{ scale: 1.05 }}
 																whileTap={{ scale: 0.95 }}
 																onClick={cancelEdit}
-																className="bg-gray-500 text-white px-3 py-2 rounded-lg font-medium"
+																disabled={loading}
+																className="bg-gray-500 disabled:bg-gray-300 text-white px-3 py-2 rounded-lg font-medium"
 															>
 																Cancel
 															</motion.button>
@@ -286,7 +416,8 @@ const App = () => {
 															whileHover={{ scale: 1.1 }}
 															whileTap={{ scale: 0.9 }}
 															onClick={() => startEditing(task.id, task.text)}
-															className="p-2 text-gray-500 hover:text-blue-500 rounded-lg hover:bg-blue-50 transition-colors"
+															disabled={loading}
+															className="p-2 text-gray-500 hover:text-blue-500 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
 														>
 															<Edit2 size={18} />
 														</motion.button>
@@ -294,7 +425,8 @@ const App = () => {
 															whileHover={{ scale: 1.1 }}
 															whileTap={{ scale: 0.9 }}
 															onClick={() => deleteTask(task.id)}
-															className="p-2 text-gray-500 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+															disabled={loading}
+															className="p-2 text-gray-500 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
 														>
 															<Trash2 size={18} />
 														</motion.button>
@@ -309,6 +441,7 @@ const App = () => {
 					</AnimatePresence>
 				</motion.div>
 
+				{/* Stats Footer */}
 				{tasks.length > 0 && (
 					<motion.div
 						initial={{ opacity: 0, y: 20 }}
