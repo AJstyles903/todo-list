@@ -4,10 +4,15 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: "0.0.0.0",
+    host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: "all",
+    allowedHosts: [
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      ".direct.labs.play-with-docker.com", // Allow Play with Docker hosts
+    ],
     proxy: {
       "/api": {
         target: "http://localhost:3000",
@@ -17,7 +22,7 @@ export default defineConfig({
     },
   },
   preview: {
-    host: "0.0.0.0",
+    host: true,
     port: 5173,
   },
 });
