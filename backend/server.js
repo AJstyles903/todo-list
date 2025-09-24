@@ -16,9 +16,9 @@ const db = mysql.createConnection({
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "root",
   database: process.env.DB_NAME || "todo_app",
-  connectTimeout: 60000,
-  acquireTimeout: 60000,
-  timeout: 60000,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 // Connect to database

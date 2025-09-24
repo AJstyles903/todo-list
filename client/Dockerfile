@@ -2,14 +2,15 @@ FROM node:22
 
 WORKDIR /app
 
-# Copy package files
+# Copy package.json and install dependencies
 COPY client/package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy client source code
 COPY client/ .
+
+# Create .env file for client (if needed)
+RUN echo "VITE_API_URL=http://localhost:3000/api" > .env
 
 EXPOSE 5173
 
